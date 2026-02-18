@@ -2,6 +2,15 @@
 import os
 import time
 import logging
+
+# 尝试加载 .env 文件（如果存在）
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # 如果没有安装 python-dotenv，继续使用环境变量
+    pass
+
 from browser import create_browser, inject_cookies
 from checkin import (
     BASE_URL,
@@ -11,6 +20,7 @@ from checkin import (
     get_username,
     do_checkin,
 )
+from telegram_notifier import TelegramNotifier
 
 # ================== 日志配置 ==================
 logging.basicConfig(
@@ -59,6 +69,9 @@ def main():
 
     log.info(f"✅ 共 {len(cookies)} 个账号，开始签到")
 
+    # 初始化 Telegram 推送器
+    telegram = TelegramNotifier()
+
     results = []
     for cookie in cookies:
         result = process_account(cookie)
@@ -68,6 +81,11 @@ def main():
 
     print("\n".join(results))
     log.info("✅ 全部完成")
+
+    # 推送结果到 Telegram
+    if telegram.enabled:
+        message = telegram.format_results(results)
+        telegram.send_message(message)
 
 
 if __name__ == "__main__":

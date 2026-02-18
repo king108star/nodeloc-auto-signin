@@ -5,8 +5,13 @@ import undetected_chromedriver as uc
 log = logging.getLogger(__name__)
 
 
-def create_browser(headless: bool = True):
-    """创建并返回 Chrome WebDriver"""
+def create_browser(headless: bool = True, retry: int = 2):
+    """创建并返回 Chrome WebDriver
+    
+    Args:
+        headless: 是否使用无头模式
+        retry: 失败后重试次数
+    """
     options = uc.ChromeOptions()
 
     base_args = [
@@ -29,20 +34,37 @@ def create_browser(headless: bool = True):
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
     )
 
-    try:
-        driver = uc.Chrome(options=options)
-        driver.set_window_size(1920, 1080)
+    for attempt in range(retry + 1):
+        try:
+            # 自动使用系统 Chrome 版本匹配驱动
+            driver = uc.Chrome(options=options, version_main=None, use_subprocess=True)
+            driver.set_window_size(1920, 1080)
 
-        # 反自动化基础伪装
-        driver.execute_script("Object.defineProperty(navigator,'webdriver',{get:()=>false})")
-        driver.execute_script("window.chrome={runtime:{}}")
-        driver.execute_script("Object.defineProperty(navigator,'languages',{get:()=>['zh-CN','zh']})")
-        driver.execute_script("Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3]})")
+            # 反自动化基础伪装
+            driver.execute_script("Object.defineProperty(navigator,'webdriver',{get:()=>false})")
+            driver.execute_script("window.chrome={runtime:{}}")
+            driver.execute_script("Object.defineProperty(navigator,'languages',{get:()=>['zh-CN','zh']})")
+            driver.execute_script("Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3]})")
 
-        return driver
-    except Exception as e:
-        log.error(f"❌ 浏览器启动失败: {e}")
-        return None
+            log.info("✅ 浏览器启动成功")
+            return driver
+            
+        except Exception as e:
+            if attempt < retry:
+                log.warning(f"⚠️ 浏览器启动失败 (尝试 {attempt + 1}/{retry + 1})，正在重试...")
+                # 清理可能存在的驱动缓存
+                try:
+                    import shutil
+                    import os
+                    cache_dir = os.path.expanduser("~/.local/share/undetected_chromedriver")
+                    if os.path.exists(cache_dir):
+                        log.info(f"🗑️ 清理驱动缓存: {cache_dir}")
+                        shutil.rmtree(cache_dir, ignore_errors=True)
+                except Exception:
+                    pass
+            else:
+                log.error(f"❌ 浏览器启动失败: {e}")
+                return None
 
 
 def inject_cookies(driver, base_url: str, cookie_str: str, domain: str):
