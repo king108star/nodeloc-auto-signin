@@ -1,0 +1,7 @@
+cookie.txt
+*.cookie
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
